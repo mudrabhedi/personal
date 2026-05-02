@@ -19,7 +19,7 @@ app.use(cookieParser());
 
 app.use(
   cors({
-    origin: ["http://localhost:5173","https://trendyythreads.onrender.com",],
+    origin: ["http://localhost:5173","https://trendyythreads-1.onrender.com",],
     
     credentials: true,
   })
