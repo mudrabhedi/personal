@@ -18,7 +18,7 @@ const sizeChart = [
   ["9XL", '54"', '60"'],
 ];
 
-export default function ProductCard({ product, onAddToCart }) {
+export default function ProductCard({ product }) {
   const [open, setOpen] = useState(false);
   const [sizeChartOpen, setSizeChartOpen] = useState(false);
   const [selectedSize, setSelectedSize] = useState("");
@@ -167,20 +167,21 @@ export default function ProductCard({ product, onAddToCart }) {
 
     const cart = JSON.parse(localStorage.getItem("cart")) || [];
 
-    const itemId = product.id || productName;
+    const itemId = product.id || product._id || productName;
 
     const existingIndex = cart.findIndex(
       (item) =>
-        String(item.id || item.title || item.name) === String(itemId) &&
+        String(item.id || item._id || item.title || item.name) === String(itemId) &&
         item.size === selectedSize
     );
 
     if (existingIndex >= 0) {
-      cart[existingIndex].quantity += qty;
+      cart[existingIndex].quantity = Number(cart[existingIndex].quantity || 1) + qty;
     } else {
       cart.push({
         ...product,
         id: itemId,
+        _id: product._id || itemId,
         title: productName,
         name: productName,
         image: product.image,
@@ -192,15 +193,6 @@ export default function ProductCard({ product, onAddToCart }) {
 
     localStorage.setItem("cart", JSON.stringify(cart));
     window.dispatchEvent(new Event("cartUpdated"));
-
-    onAddToCart?.({
-      ...product,
-      id: itemId,
-      title: productName,
-      href: productLink,
-      size: selectedSize,
-      quantity: qty,
-    });
 
     toast.success("Added to cart");
     closeDrawer();
