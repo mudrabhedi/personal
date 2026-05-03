@@ -114,6 +114,15 @@ const findProduct = (identifier) => {
   });
 };
 
+const filterProductsByCategory = (category) => {
+  const cleanCategory = decodeURIComponent(String(category || "")).toLowerCase().trim();
+
+  return loadProducts().filter((product) => {
+    const productCategory = String(product.category || "").toLowerCase().trim();
+    return productCategory === cleanCategory || productCategory.includes(cleanCategory);
+  });
+};
+
 const createResponse = (data) => Promise.resolve({ data });
 
 const createError = (message, status = 404) => {
@@ -126,6 +135,11 @@ export const API = {
   get: async (url) => {
     if (url === "/products") {
       return createResponse(loadProducts());
+    }
+
+    if (url.startsWith("/products/category/")) {
+      const category = url.replace("/products/category/", "");
+      return createResponse(filterProductsByCategory(category));
     }
 
     if (url.startsWith("/products/")) {
@@ -149,10 +163,11 @@ export const API = {
   post: async (url, body) => {
     if (url === "/products") {
       const products = loadProducts();
+      const id = body?._id || body?.id || makeId();
       const product = normalizeProduct({
         ...body,
-        _id: body?._id || body?.id || makeId(),
-        id: body?.id || body?._id || makeId(),
+        _id: id,
+        id,
         createdAt: body?.createdAt || new Date().toISOString(),
       });
 
