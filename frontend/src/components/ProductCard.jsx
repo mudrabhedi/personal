@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { X, Heart } from "lucide-react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
@@ -24,6 +24,8 @@ export default function ProductCard({ product }) {
   const [selectedSize, setSelectedSize] = useState("");
   const [qty, setQty] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const addToCartLockRef = useRef(false);
 
   const productName = product.title || product.name || "Product";
   const productKey = String(productName).toLowerCase().trim();
@@ -121,6 +123,8 @@ export default function ProductCard({ product }) {
     if (open) {
       setSelectedSize(availableSizes[0] || "");
       setQty(1);
+      setIsAdding(false);
+      addToCartLockRef.current = false;
     }
   }, [open, availableSizes]);
 
@@ -159,14 +163,19 @@ export default function ProductCard({ product }) {
     setQty((prev) => prev + 1);
   };
 
-  const handleAddToCart = () => {
+  const addCurrentSelectionToCart = () => {
+    if (addToCartLockRef.current) return false;
+    addToCartLockRef.current = true;
+    setIsAdding(true);
+
     if (!selectedSize) {
       toast.error("Please select a size");
-      return;
+      addToCartLockRef.current = false;
+      setIsAdding(false);
+      return false;
     }
 
     const cart = JSON.parse(localStorage.getItem("cart")) || [];
-
     const itemId = product.id || product._id || productName;
 
     const existingIndex = cart.findIndex(
@@ -194,12 +203,31 @@ export default function ProductCard({ product }) {
     localStorage.setItem("cart", JSON.stringify(cart));
     window.dispatchEvent(new Event("cartUpdated"));
 
-    toast.success("Added to cart");
+    toast.success("Added to cart", { id: `cart-${itemId}-${selectedSize}` });
     closeDrawer();
+
+    setTimeout(() => {
+      addToCartLockRef.current = false;
+      setIsAdding(false);
+    }, 700);
+
+    return true;
   };
 
-  const handleBuyNow = () => {
-    handleAddToCart();
+  const handleAddToCart = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    addCurrentSelectionToCart();
+  };
+
+  const handleBuyNow = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+
+    const added = addCurrentSelectionToCart();
+
+    if (!added) return;
+
     setTimeout(() => {
       window.scrollTo(0, 0);
       window.location.href = "/checkout";
@@ -280,6 +308,7 @@ export default function ProductCard({ product }) {
               </h2>
 
               <button
+                type="button"
                 onClick={() =>
                   sizeChartOpen ? setSizeChartOpen(false) : closeDrawer()
                 }
@@ -321,6 +350,7 @@ export default function ProductCard({ product }) {
                     <p className="text-[#4B0F1F]">Size:</p>
 
                     <button
+                      type="button"
                       onClick={() => setSizeChartOpen(true)}
                       className="text-sm underline text-[#9F5C69]"
                     >
@@ -338,7 +368,7 @@ export default function ProductCard({ product }) {
                         <button
                           key={size}
                           type="button"
-                          disabled={isOutOfStock}
+                          disabled={isOutOfStock || isAdding}
                           onClick={() => handleSelectSize(size)}
                           className={`relative h-11 rounded-md border text-sm transition overflow-hidden ${
                             isOutOfStock
@@ -369,11 +399,12 @@ export default function ProductCard({ product }) {
                   <p className="text-[#4B0F1F]">Quantity:</p>
 
                   <div className="mt-5 flex items-center gap-8 text-xl">
-                    <button onClick={handleDecreaseQty}>-</button>
+                    <button type="button" onClick={handleDecreaseQty} disabled={isAdding}>-</button>
                     <span>{qty}</span>
                     <button
+                      type="button"
                       onClick={handleIncreaseQty}
-                      disabled={!selectedSize || qty >= selectedSizeStock}
+                      disabled={!selectedSize || qty >= selectedSizeStock || isAdding}
                       className="disabled:text-gray-300"
                     >
                       +
@@ -383,16 +414,18 @@ export default function ProductCard({ product }) {
 
                 <div className="mt-10 grid grid-cols-2 gap-3">
                   <button
+                    type="button"
                     onClick={handleAddToCart}
-                    disabled={!selectedSize || availableSizes.length === 0}
+                    disabled={!selectedSize || availableSizes.length === 0 || isAdding}
                     className="bg-[#8A5A5D] text-white py-4 font-bold hover:bg-[#70464A] transition disabled:bg-gray-300"
                   >
-                    ADD TO CART
+                    {isAdding ? "ADDING..." : "ADD TO CART"}
                   </button>
 
                   <button
+                    type="button"
                     onClick={handleBuyNow}
-                    disabled={!selectedSize || availableSizes.length === 0}
+                    disabled={!selectedSize || availableSizes.length === 0 || isAdding}
                     className="border py-4 text-center font-bold tracking-[0.2em] border-[#8A5A5D] text-[#8A5A5D] hover:bg-[#8A5A5D] hover:text-white transition disabled:border-gray-300 disabled:text-gray-300"
                   >
                     BUY NOW
@@ -412,6 +445,7 @@ export default function ProductCard({ product }) {
             ) : (
               <div className="px-8 py-8">
                 <button
+                  type="button"
                   onClick={() => setSizeChartOpen(false)}
                   className="mb-5 text-sm underline text-[#9F5C69]"
                 >
