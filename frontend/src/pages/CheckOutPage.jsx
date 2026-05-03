@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
 import { API } from "../api/api";
 
 export default function CheckoutPage() {
@@ -49,6 +48,7 @@ export default function CheckoutPage() {
       })),
 
       total: grandTotal,
+      totalAmount: grandTotal,
       items: cart.reduce((sum, item) => sum + Number(item.quantity || 1), 0),
 
       paymentMethod,
@@ -84,14 +84,14 @@ export default function CheckoutPage() {
     window.dispatchEvent(new Event("cartUpdated"));
   };
 
-  const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
+  const clearCartAndGoHome = () => {
+    localStorage.removeItem("cart");
+    localStorage.removeItem("checkout");
+
+    setCart([]);
+    window.dispatchEvent(new Event("cartUpdated"));
+
+    window.location.href = "/";
   };
 
   const handleRazorpayPayment = async () => {
@@ -101,47 +101,9 @@ export default function CheckoutPage() {
     }
 
     try {
-      const loaded = await loadRazorpayScript();
-
-      if (!loaded) {
-        alert("Razorpay SDK failed to load");
-        return;
-      }
-
-      const { data: order } = await axios.post(
-        "http://localhost:5000/api/payment/create-order",
-        { amount: grandTotal }
-      );
-
-      const options = {
-        key: "rzp_test_SkAzOkzr0VpjvT",
-        amount: order.amount,
-        currency: order.currency,
-        name: "TrendyThreads",
-        description: "Order Payment",
-        order_id: order.id,
-
-        handler: async function () {
-          await saveOrderToAdmin("Paid");
-
-          alert("Payment successful!");
-
-          localStorage.removeItem("cart");
-          localStorage.removeItem("checkout");
-
-          setCart([]);
-          window.dispatchEvent(new Event("cartUpdated"));
-
-          window.location.href = "/";
-        },
-
-        theme: {
-          color: "#8A5A5D",
-        },
-      };
-
-      const paymentObject = new window.Razorpay(options);
-      paymentObject.open();
+      await saveOrderToAdmin("Paid");
+      alert("Mock payment successful! Order saved in localStorage.");
+      clearCartAndGoHome();
     } catch (error) {
       console.error(error);
       alert("Payment failed. Please try again.");
@@ -158,14 +120,7 @@ export default function CheckoutPage() {
       await saveOrderToAdmin("COD");
 
       alert("COD order placed!");
-
-      localStorage.removeItem("cart");
-      localStorage.removeItem("checkout");
-
-      setCart([]);
-      window.dispatchEvent(new Event("cartUpdated"));
-
-      window.location.href = "/";
+      clearCartAndGoHome();
     } catch (error) {
       console.error(error);
       alert("Failed to place order");
@@ -261,7 +216,7 @@ export default function CheckoutPage() {
                 />
 
                 <span className="text-[#111] leading-6">
-                  Razorpay Secure (UPI, Cards, Wallets)
+                  Mock Razorpay Secure (localStorage order)
                 </span>
               </div>
 
@@ -280,8 +235,8 @@ export default function CheckoutPage() {
 
             {paymentMethod === "razorpay" && (
               <div className="bg-[#F4F4F4] border-t border-[#D9D9D9] px-6 py-4 text-sm text-center text-[#333]">
-                You’ll be redirected to Razorpay Secure to complete your
-                payment.
+                Localhost mode: clicking Pay now will save the order directly in
+                localStorage and show it in the admin dashboard.
               </div>
             )}
 
