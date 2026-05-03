@@ -19,55 +19,39 @@ const sizeChart = [
 ];
 
 export default function ProductCard({ product, onAddToCart }) {
-  useEffect(() => {
-  window.scrollTo(0, 0);
-}, []);
   const [open, setOpen] = useState(false);
   const [sizeChartOpen, setSizeChartOpen] = useState(false);
-  const [loginPopupOpen, setLoginPopupOpen] = useState(false);
-  const [authMode, setAuthMode] = useState("login");
   const [selectedSize, setSelectedSize] = useState("");
   const [qty, setQty] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
 
-  const [authForm, setAuthForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-  });
+  const productName = product.title || product.name || "Product";
+  const productKey = String(productName).toLowerCase().trim();
 
-  const createSlug = (text) =>
-  String(text || "")
-    .toLowerCase()
-    .trim()
+  const productSlug = productKey
     .replace(/[^\w\s-]/g, "")
     .replace(/\s+/g, "-");
 
-const productLink = `/product/${String(product.title || product.name)
-  .toLowerCase()
-  .trim()
-  .replace(/[^\w\s-]/g, "")
-  .replace(/\s+/g, "-")}`;
-  const productKey = String(product.title || product.name).toLowerCase().trim();
+  const productLink = `/product/${productSlug}`;
 
-  const isLoggedIn = () => {
-    return (
-      localStorage.getItem("user") ||
-      localStorage.getItem("token") ||
-      localStorage.getItem("loggedInUser")
-    );
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  const getWishlist = () => {
+    return JSON.parse(localStorage.getItem("wishlist")) || [];
   };
 
-const checkWishlist = () => {
-  const wishlist = JSON.parse(localStorage.getItem("wishlist")) || [];
+  const checkWishlist = () => {
+    const wishlist = getWishlist();
 
-  setIsWishlisted(
-    wishlist.some(
+    const exists = wishlist.some(
       (item) =>
         String(item.title || item.name).toLowerCase().trim() === productKey
-    )
-  );
-};
+    );
+
+    setIsWishlisted(exists);
+  };
 
   useEffect(() => {
     checkWishlist();
@@ -79,89 +63,47 @@ const checkWishlist = () => {
       window.removeEventListener("wishlistUpdated", checkWishlist);
       window.removeEventListener("storage", checkWishlist);
     };
-  }, [product.id]);
-
-  const addProductToWishlist = () => {
-  const wishlist = JSON.parse(localStorage.getItem("wishlist")) || [];
-
-  const exists = wishlist.some(
-    (item) =>
-      String(item.title || item.name).toLowerCase().trim() === productKey
-  );
-
-  if (exists) {
-    const updatedWishlist = wishlist.filter(
-      (item) =>
-        String(item.title || item.name).toLowerCase().trim() !== productKey
-    );
-
-    localStorage.setItem("wishlist", JSON.stringify(updatedWishlist));
-    setIsWishlisted(false);
-    window.dispatchEvent(new Event("wishlistUpdated"));
-    toast("Removed from wishlist");
-    return;
-  }
-
-  const updatedWishlist = [
-    ...wishlist,
-    {
-      title: product.title || product.name,
-      name: product.name || product.title,
-      price: product.price,
-      oldPrice: product.oldPrice,
-      image: product.image,
-      href: productLink,
-      category: product.category,
-    },
-  ];
-
-  localStorage.setItem("wishlist", JSON.stringify(updatedWishlist));
-  setIsWishlisted(true);
-  window.dispatchEvent(new Event("wishlistUpdated"));
-  toast.success("Added to wishlist");
-};
+  }, [productKey]);
 
   const toggleWishlist = (e) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (!isLoggedIn()) {
-      setLoginPopupOpen(true);
+    const wishlist = getWishlist();
+
+    const exists = wishlist.some(
+      (item) =>
+        String(item.title || item.name).toLowerCase().trim() === productKey
+    );
+
+    if (exists) {
+      const updatedWishlist = wishlist.filter(
+        (item) =>
+          String(item.title || item.name).toLowerCase().trim() !== productKey
+      );
+
+      localStorage.setItem("wishlist", JSON.stringify(updatedWishlist));
+      setIsWishlisted(false);
+      window.dispatchEvent(new Event("wishlistUpdated"));
+      toast("Removed from wishlist");
       return;
     }
 
-    addProductToWishlist();
-  };
+    const updatedWishlist = [
+      ...wishlist,
+      {
+        ...product,
+        title: productName,
+        name: productName,
+        image: product.image,
+        href: productLink,
+      },
+    ];
 
-  const handleAuthSubmit = (e) => {
-    e.preventDefault();
-
-    if (!authForm.email || !authForm.password) {
-      toast.error("Please enter email and password");
-      return;
-    }
-
-    if (authMode === "signup" && !authForm.name) {
-      toast.error("Please enter your name");
-      return;
-    }
-
-    const userData = {
-      name: authForm.name || "Customer",
-      email: authForm.email,
-    };
-
-    localStorage.setItem("user", JSON.stringify(userData));
-
-    setLoginPopupOpen(false);
-    setAuthForm({
-      name: "",
-      email: "",
-      password: "",
-    });
-
-    toast.success(authMode === "signup" ? "Account created" : "Logged in");
-    addProductToWishlist();
+    localStorage.setItem("wishlist", JSON.stringify(updatedWishlist));
+    setIsWishlisted(true);
+    window.dispatchEvent(new Event("wishlistUpdated"));
+    toast.success("Added to wishlist");
   };
 
   const getSizeStock = (size) => {
@@ -177,8 +119,7 @@ const checkWishlist = () => {
 
   useEffect(() => {
     if (open) {
-      const firstAvailableSize = availableSizes[0] || "";
-      setSelectedSize(firstAvailableSize);
+      setSelectedSize(availableSizes[0] || "");
       setQty(1);
     }
   }, [open, availableSizes]);
@@ -186,26 +127,6 @@ const checkWishlist = () => {
   const closeDrawer = () => {
     setOpen(false);
     setSizeChartOpen(false);
-  };
-
-  const handleDecreaseQty = () => {
-    setQty((prev) => Math.max(1, prev - 1));
-  };
-
-  const handleIncreaseQty = () => {
-    if (!selectedSize) {
-      toast.error("Select a size first");
-      return;
-    }
-
-    const stock = getSizeStock(selectedSize);
-
-    if (qty >= stock) {
-      toast.error(`Only ${stock} available`);
-      return;
-    }
-
-    setQty((prev) => prev + 1);
   };
 
   const handleSelectSize = (size) => {
@@ -220,29 +141,38 @@ const checkWishlist = () => {
     setQty(1);
   };
 
+  const handleDecreaseQty = () => {
+    setQty((prev) => Math.max(1, prev - 1));
+  };
+
+  const handleIncreaseQty = () => {
+    if (!selectedSize) {
+      toast.error("Select a size first");
+      return;
+    }
+
+    if (qty >= selectedSizeStock) {
+      toast.error(`Only ${selectedSizeStock} available`);
+      return;
+    }
+
+    setQty((prev) => prev + 1);
+  };
+
   const handleAddToCart = () => {
     if (!selectedSize) {
       toast.error("Please select a size");
       return;
     }
 
-    const stock = getSizeStock(selectedSize);
-
-    if (stock <= 0) {
-      toast.error("This size is out of stock");
-      return;
-    }
-
-    if (qty > stock) {
-      toast.error(`Only ${stock} item(s) available`);
-      setQty(stock);
-      return;
-    }
-
     const cart = JSON.parse(localStorage.getItem("cart")) || [];
 
+    const itemId = product.id || productName;
+
     const existingIndex = cart.findIndex(
-      (item) => String(item.id) === String(product.id) && item.size === selectedSize
+      (item) =>
+        String(item.id || item.title || item.name) === String(itemId) &&
+        item.size === selectedSize
     );
 
     if (existingIndex >= 0) {
@@ -250,6 +180,10 @@ const checkWishlist = () => {
     } else {
       cart.push({
         ...product,
+        id: itemId,
+        title: productName,
+        name: productName,
+        image: product.image,
         href: productLink,
         size: selectedSize,
         quantity: qty,
@@ -261,6 +195,8 @@ const checkWishlist = () => {
 
     onAddToCart?.({
       ...product,
+      id: itemId,
+      title: productName,
       href: productLink,
       size: selectedSize,
       quantity: qty,
@@ -270,6 +206,14 @@ const checkWishlist = () => {
     closeDrawer();
   };
 
+  const handleBuyNow = () => {
+    handleAddToCart();
+    setTimeout(() => {
+      window.scrollTo(0, 0);
+      window.location.href = "/checkout";
+    }, 100);
+  };
+
   return (
     <>
       <div className="group min-w-[270px] max-w-[270px] bg-white">
@@ -277,7 +221,7 @@ const checkWishlist = () => {
           <div className="relative overflow-hidden bg-[#F7EFEA]">
             <img
               src={product.image}
-              alt={product.title || product.name}
+              alt={productName}
               className="h-[390px] w-full object-cover transition-all duration-700 ease-out group-hover:scale-105"
             />
 
@@ -316,13 +260,11 @@ const checkWishlist = () => {
           </div>
 
           <div className="pt-3 text-[#1f1f1f]">
-            <h3 className="text-[16px] leading-6">
-              {product.title || product.name}
-            </h3>
+            <h3 className="text-[16px] leading-6">{productName}</h3>
 
             <div className="mt-1 flex items-center gap-2">
               <span className="font-bold text-[18px]">
-                Rs. {Number(product.price).toLocaleString("en-IN")}
+                Rs. {Number(product.price || 0).toLocaleString("en-IN")}
               </span>
 
               {product.oldPrice && (
@@ -335,91 +277,9 @@ const checkWishlist = () => {
         </Link>
       </div>
 
-      {loginPopupOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center px-4">
-          <div
-            onClick={() => setLoginPopupOpen(false)}
-            className="absolute inset-0 bg-black/50"
-          />
-
-          <div className="relative bg-white w-full max-w-md p-7 shadow-2xl animate-fadeIn">
-            <button
-              onClick={() => setLoginPopupOpen(false)}
-              className="absolute right-5 top-5 text-gray-500 hover:text-black"
-            >
-              <X size={20} />
-            </button>
-
-            <h2 className="text-2xl font-semibold text-[#111]">
-              {authMode === "login" ? "Login" : "Create Account"}
-            </h2>
-
-            <p className="mt-2 text-sm text-gray-500">
-              Login or sign up to add this product to your wishlist.
-            </p>
-
-            <form onSubmit={handleAuthSubmit} className="mt-6 space-y-4">
-              {authMode === "signup" && (
-                <input
-                  value={authForm.name}
-                  onChange={(e) =>
-                    setAuthForm((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  placeholder="Full name"
-                  className="w-full border border-[#D9D9D9] px-4 py-3 focus:outline-none focus:border-[#111]"
-                />
-              )}
-
-              <input
-                type="email"
-                value={authForm.email}
-                onChange={(e) =>
-                  setAuthForm((prev) => ({ ...prev, email: e.target.value }))
-                }
-                placeholder="Email address"
-                className="w-full border border-[#D9D9D9] px-4 py-3 focus:outline-none focus:border-[#111]"
-              />
-
-              <input
-                type="password"
-                value={authForm.password}
-                onChange={(e) =>
-                  setAuthForm((prev) => ({ ...prev, password: e.target.value }))
-                }
-                placeholder="Password"
-                className="w-full border border-[#D9D9D9] px-4 py-3 focus:outline-none focus:border-[#111]"
-              />
-
-              <button
-                type="submit"
-                className="w-full bg-[#8A5A5D] text-white py-4 font-semibold hover:bg-[#70464A] transition"
-              >
-                {authMode === "login"
-                  ? "Login & Add to Wishlist"
-                  : "Sign Up & Add to Wishlist"}
-              </button>
-            </form>
-
-            <button
-              onClick={() =>
-                setAuthMode((prev) => (prev === "login" ? "signup" : "login"))
-              }
-              className="mt-5 text-sm underline text-[#8A5A5D]"
-            >
-              {authMode === "login"
-                ? "New here? Create an account"
-                : "Already have an account? Login"}
-            </button>
-          </div>
-        </div>
-      )}
-
       {open && (
         <div className="fixed inset-0 z-[999] flex justify-end">
-          <div
-            onClick={closeDrawer}
-            className="absolute inset-0 bg-black/45 animate-fadeIn"
-          />
+          <div onClick={closeDrawer} className="absolute inset-0 bg-black/45" />
 
           <aside className="relative h-full w-full sm:w-[520px] bg-white shadow-2xl overflow-y-auto animate-slideInRight">
             <div className="flex items-center justify-between border-b border-gray-200 px-8 py-6">
@@ -437,22 +297,22 @@ const checkWishlist = () => {
             </div>
 
             {!sizeChartOpen ? (
-              <div className="px-8 py-10 animate-fadeIn">
+              <div className="px-8 py-10">
                 <div className="flex gap-6">
                   <img
                     src={product.image}
-                    alt={product.title || product.name}
+                    alt={productName}
                     className="w-32 h-44 object-cover bg-[#F7EFEA]"
                   />
 
                   <div className="pt-8">
                     <h3 className="font-semibold text-[#111] text-[17px] leading-6">
-                      {product.title || product.name}
+                      {productName}
                     </h3>
 
                     <div className="mt-2 flex items-center gap-2">
                       <span className="font-bold text-2xl">
-                        Rs. {Number(product.price).toLocaleString("en-IN")}
+                        Rs. {Number(product.price || 0).toLocaleString("en-IN")}
                       </span>
 
                       {product.oldPrice && (
@@ -461,12 +321,6 @@ const checkWishlist = () => {
                         </span>
                       )}
                     </div>
-
-                    {availableSizes.length === 0 && (
-                      <p className="mt-3 text-sm font-medium text-red-600">
-                        Currently out of stock
-                      </p>
-                    )}
                   </div>
                 </div>
 
@@ -476,7 +330,7 @@ const checkWishlist = () => {
 
                     <button
                       onClick={() => setSizeChartOpen(true)}
-                      className="text-sm underline text-[#9F5C69] hover:text-[#4B0F1F] transition"
+                      className="text-sm underline text-[#9F5C69]"
                     >
                       Size chart
                     </button>
@@ -494,12 +348,7 @@ const checkWishlist = () => {
                           type="button"
                           disabled={isOutOfStock}
                           onClick={() => handleSelectSize(size)}
-                          title={
-                            isOutOfStock
-                              ? `${size} out of stock`
-                              : `${stock} available`
-                          }
-                          className={`relative h-11 rounded-md border text-sm transition-all duration-300 overflow-hidden ${
+                          className={`relative h-11 rounded-md border text-sm transition overflow-hidden ${
                             isOutOfStock
                               ? "bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed"
                               : isSelected
@@ -528,20 +377,12 @@ const checkWishlist = () => {
                   <p className="text-[#4B0F1F]">Quantity:</p>
 
                   <div className="mt-5 flex items-center gap-8 text-xl">
-                    <button
-                      onClick={handleDecreaseQty}
-                      disabled={!selectedSize}
-                      className="px-2 hover:text-[#9F5C69] transition disabled:text-gray-300 disabled:cursor-not-allowed"
-                    >
-                      -
-                    </button>
-
+                    <button onClick={handleDecreaseQty}>-</button>
                     <span>{qty}</span>
-
                     <button
                       onClick={handleIncreaseQty}
                       disabled={!selectedSize || qty >= selectedSizeStock}
-                      className="px-2 hover:text-[#9F5C69] transition disabled:text-gray-300 disabled:cursor-not-allowed"
+                      className="disabled:text-gray-300"
                     >
                       +
                     </button>
@@ -552,28 +393,32 @@ const checkWishlist = () => {
                   <button
                     onClick={handleAddToCart}
                     disabled={!selectedSize || availableSizes.length === 0}
-                    className="bg-[#8A5A5D] text-white py-4 font-bold tracking-wide hover:bg-[#70464A] transition disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    className="bg-[#8A5A5D] text-white py-4 font-bold hover:bg-[#70464A] transition disabled:bg-gray-300"
                   >
-                    {availableSizes.length === 0 ? "OUT OF STOCK" : "ADD TO CART"}
+                    ADD TO CART
                   </button>
 
-                  <Link
-                    to={productLink}
-                    onClick={closeDrawer}
-                    className="border py-4 text-center font-bold tracking-[0.25em] border-[#8A5A5D] text-[#8A5A5D] hover:bg-[#8A5A5D] hover:text-white transition"
+                  <button
+                    onClick={handleBuyNow}
+                    disabled={!selectedSize || availableSizes.length === 0}
+                    className="border py-4 text-center font-bold tracking-[0.2em] border-[#8A5A5D] text-[#8A5A5D] hover:bg-[#8A5A5D] hover:text-white transition disabled:border-gray-300 disabled:text-gray-300"
                   >
-                    BUY IT NOW
-                  </Link>
+                    BUY NOW
+                  </button>
                 </div>
 
                 <div className="mt-8 text-center">
-                  <Link to={productLink} className="underline text-[#9F5C69]">
+                  <Link
+                    to={productLink}
+                    onClick={closeDrawer}
+                    className="underline text-[#9F5C69]"
+                  >
                     View details
                   </Link>
                 </div>
               </div>
             ) : (
-              <div className="px-8 py-8 animate-fadeIn">
+              <div className="px-8 py-8">
                 <button
                   onClick={() => setSizeChartOpen(false)}
                   className="mb-5 text-sm underline text-[#9F5C69]"
@@ -581,33 +426,37 @@ const checkWishlist = () => {
                   Back to options
                 </button>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full border border-[#333] text-center text-[#111]">
-                    <thead>
-                      <tr>
-                        <th className="border border-[#333] px-4 py-4 font-semibold">
-                          GENERIC SIZE
-                        </th>
-                        <th className="border border-[#333] px-4 py-4 font-semibold">
-                          TO FIT WAIST
-                        </th>
-                        <th className="border border-[#333] px-4 py-4 font-semibold">
-                          TO FIT HIP
-                        </th>
-                      </tr>
-                    </thead>
+                <table className="w-full border border-[#333] text-center text-[#111]">
+                  <thead>
+                    <tr>
+                      <th className="border border-[#333] px-4 py-4">
+                        GENERIC SIZE
+                      </th>
+                      <th className="border border-[#333] px-4 py-4">
+                        TO FIT WAIST
+                      </th>
+                      <th className="border border-[#333] px-4 py-4">
+                        TO FIT HIP
+                      </th>
+                    </tr>
+                  </thead>
 
-                    <tbody>
-                      {sizeChart.map(([size, waist, hip]) => (
-                        <tr key={size}>
-                          <td className="border border-[#333] px-4 py-4">{size}</td>
-                          <td className="border border-[#333] px-4 py-4">{waist}</td>
-                          <td className="border border-[#333] px-4 py-4">{hip}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                  <tbody>
+                    {sizeChart.map(([size, waist, hip]) => (
+                      <tr key={size}>
+                        <td className="border border-[#333] px-4 py-4">
+                          {size}
+                        </td>
+                        <td className="border border-[#333] px-4 py-4">
+                          {waist}
+                        </td>
+                        <td className="border border-[#333] px-4 py-4">
+                          {hip}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </aside>
@@ -620,17 +469,8 @@ const checkWishlist = () => {
           to { transform: translateX(0); opacity: 1; }
         }
 
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
         .animate-slideInRight {
           animation: slideInRight 0.35s ease-out;
-        }
-
-        .animate-fadeIn {
-          animation: fadeIn 0.25s ease-out;
         }
       `}</style>
     </>
