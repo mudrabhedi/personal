@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X, Heart } from "lucide-react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
+import { addItemToCartOnce } from "../utils/cartUtils";
 
 const sizes = ["L", "XL", "2XL", "3XL", "4XL", "5XL", "6XL", "7XL", "8XL", "9XL"];
 
@@ -18,6 +19,13 @@ const sizeChart = [
   ["9XL", '54"', '60"'],
 ];
 
+const slugify = (text) =>
+  String(text || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-");
+
 export default function ProductCard({ product }) {
   const [open, setOpen] = useState(false);
   const [sizeChartOpen, setSizeChartOpen] = useState(false);
@@ -25,39 +33,28 @@ export default function ProductCard({ product }) {
   const [qty, setQty] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
-  const addToCartLockRef = useRef(false);
 
   const productName = product.title || product.name || "Product";
   const productKey = String(productName).toLowerCase().trim();
-
-  const productSlug = productKey
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-");
-
+  const productSlug = slugify(productName);
   const productLink = `/product/${productSlug}`;
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
-  const getWishlist = () => {
-    return JSON.parse(localStorage.getItem("wishlist")) || [];
-  };
+  const getWishlist = () => JSON.parse(localStorage.getItem("wishlist")) || [];
 
   const checkWishlist = () => {
     const wishlist = getWishlist();
-
     const exists = wishlist.some(
-      (item) =>
-        String(item.title || item.name).toLowerCase().trim() === productKey
+      (item) => String(item.title || item.name).toLowerCase().trim() === productKey
     );
-
     setIsWishlisted(exists);
   };
 
   useEffect(() => {
     checkWishlist();
-
     window.addEventListener("wishlistUpdated", checkWishlist);
     window.addEventListener("storage", checkWishlist);
 
@@ -72,18 +69,14 @@ export default function ProductCard({ product }) {
     e.stopPropagation();
 
     const wishlist = getWishlist();
-
     const exists = wishlist.some(
-      (item) =>
-        String(item.title || item.name).toLowerCase().trim() === productKey
+      (item) => String(item.title || item.name).toLowerCase().trim() === productKey
     );
 
     if (exists) {
       const updatedWishlist = wishlist.filter(
-        (item) =>
-          String(item.title || item.name).toLowerCase().trim() !== productKey
+        (item) => String(item.title || item.name).toLowerCase().trim() !== productKey
       );
-
       localStorage.setItem("wishlist", JSON.stringify(updatedWishlist));
       setIsWishlisted(false);
       window.dispatchEvent(new Event("wishlistUpdated"));
@@ -91,18 +84,19 @@ export default function ProductCard({ product }) {
       return;
     }
 
-    const updatedWishlist = [
-      ...wishlist,
-      {
-        ...product,
-        title: productName,
-        name: productName,
-        image: product.image,
-        href: productLink,
-      },
-    ];
-
-    localStorage.setItem("wishlist", JSON.stringify(updatedWishlist));
+    localStorage.setItem(
+      "wishlist",
+      JSON.stringify([
+        ...wishlist,
+        {
+          ...product,
+          title: productName,
+          name: productName,
+          image: product.image,
+          href: productLink,
+        },
+      ])
+    );
     setIsWishlisted(true);
     window.dispatchEvent(new Event("wishlistUpdated"));
     toast.success("Added to wishlist");
@@ -113,9 +107,10 @@ export default function ProductCard({ product }) {
     return foundSize ? Number(foundSize.stock) : 0;
   };
 
-  const availableSizes = useMemo(() => {
-    return sizes.filter((size) => getSizeStock(size) > 0);
-  }, [product]);
+  const availableSizes = useMemo(
+    () => sizes.filter((size) => getSizeStock(size) > 0),
+    [product]
+  );
 
   const selectedSizeStock = selectedSize ? getSizeStock(selectedSize) : 0;
 
@@ -124,7 +119,6 @@ export default function ProductCard({ product }) {
       setSelectedSize(availableSizes[0] || "");
       setQty(1);
       setIsAdding(false);
-      addToCartLockRef.current = false;
     }
   }, [open, availableSizes]);
 
@@ -135,83 +129,58 @@ export default function ProductCard({ product }) {
 
   const handleSelectSize = (size) => {
     const stock = getSizeStock(size);
-
     if (stock <= 0) {
       toast.error(`${size} is out of stock`);
       return;
     }
-
     setSelectedSize(size);
     setQty(1);
   };
 
-  const handleDecreaseQty = () => {
-    setQty((prev) => Math.max(1, prev - 1));
-  };
+  const handleDecreaseQty = () => setQty((prev) => Math.max(1, prev - 1));
 
   const handleIncreaseQty = () => {
     if (!selectedSize) {
       toast.error("Select a size first");
       return;
     }
-
     if (qty >= selectedSizeStock) {
       toast.error(`Only ${selectedSizeStock} available`);
       return;
     }
-
     setQty((prev) => prev + 1);
   };
 
   const addCurrentSelectionToCart = () => {
-    if (addToCartLockRef.current) return false;
-    addToCartLockRef.current = true;
-    setIsAdding(true);
+    if (isAdding) return false;
 
     if (!selectedSize) {
       toast.error("Please select a size");
-      addToCartLockRef.current = false;
-      setIsAdding(false);
       return false;
     }
 
-    const cart = JSON.parse(localStorage.getItem("cart")) || [];
+    setIsAdding(true);
+
     const itemId = product.id || product._id || productName;
+    const added = addItemToCartOnce({
+      ...product,
+      id: itemId,
+      _id: product._id || itemId,
+      title: productName,
+      name: productName,
+      image: product.image,
+      href: productLink,
+      size: selectedSize,
+      quantity: qty,
+    });
 
-    const existingIndex = cart.findIndex(
-      (item) =>
-        String(item.id || item._id || item.title || item.name) === String(itemId) &&
-        item.size === selectedSize
-    );
-
-    if (existingIndex >= 0) {
-      cart[existingIndex].quantity = Number(cart[existingIndex].quantity || 1) + qty;
-    } else {
-      cart.push({
-        ...product,
-        id: itemId,
-        _id: product._id || itemId,
-        title: productName,
-        name: productName,
-        image: product.image,
-        href: productLink,
-        size: selectedSize,
-        quantity: qty,
-      });
+    if (added) {
+      toast.success("Added to cart", { id: `added-${itemId}-${selectedSize}` });
+      closeDrawer();
     }
 
-    localStorage.setItem("cart", JSON.stringify(cart));
-    window.dispatchEvent(new Event("cartUpdated"));
-
-    toast.success("Added to cart", { id: `cart-${itemId}-${selectedSize}` });
-    closeDrawer();
-
-    setTimeout(() => {
-      addToCartLockRef.current = false;
-      setIsAdding(false);
-    }, 700);
-
-    return true;
+    setTimeout(() => setIsAdding(false), 900);
+    return added;
   };
 
   const handleAddToCart = (e) => {
@@ -223,9 +192,7 @@ export default function ProductCard({ product }) {
   const handleBuyNow = (e) => {
     e?.preventDefault?.();
     e?.stopPropagation?.();
-
     const added = addCurrentSelectionToCart();
-
     if (!added) return;
 
     setTimeout(() => {
@@ -281,12 +248,10 @@ export default function ProductCard({ product }) {
 
           <div className="pt-3 text-[#1f1f1f]">
             <h3 className="text-[16px] leading-6">{productName}</h3>
-
             <div className="mt-1 flex items-center gap-2">
               <span className="font-bold text-[18px]">
                 Rs. {Number(product.price || 0).toLocaleString("en-IN")}
               </span>
-
               {product.oldPrice && (
                 <span className="text-gray-500 line-through text-sm">
                   Rs. {Number(product.oldPrice).toLocaleString("en-IN")}
@@ -306,7 +271,6 @@ export default function ProductCard({ product }) {
               <h2 className="text-lg text-[#1f1f1f]">
                 {sizeChartOpen ? "Size Chart" : "Choose options"}
               </h2>
-
               <button
                 type="button"
                 onClick={() =>
@@ -330,12 +294,10 @@ export default function ProductCard({ product }) {
                     <h3 className="font-semibold text-[#111] text-[17px] leading-6">
                       {productName}
                     </h3>
-
                     <div className="mt-2 flex items-center gap-2">
                       <span className="font-bold text-2xl">
                         Rs. {Number(product.price || 0).toLocaleString("en-IN")}
                       </span>
-
                       {product.oldPrice && (
                         <span className="text-gray-500 line-through">
                           Rs. {Number(product.oldPrice).toLocaleString("en-IN")}
@@ -348,7 +310,6 @@ export default function ProductCard({ product }) {
                 <div className="mt-8">
                   <div className="flex justify-between items-center">
                     <p className="text-[#4B0F1F]">Size:</p>
-
                     <button
                       type="button"
                       onClick={() => setSizeChartOpen(true)}
@@ -379,7 +340,6 @@ export default function ProductCard({ product }) {
                           }`}
                         >
                           {size}
-
                           {isOutOfStock && (
                             <span className="absolute left-1/2 top-1/2 h-[1.5px] w-[140%] bg-gray-400 -translate-x-1/2 -translate-y-1/2 rotate-[-22deg]" />
                           )}
@@ -397,7 +357,6 @@ export default function ProductCard({ product }) {
 
                 <div className="mt-8">
                   <p className="text-[#4B0F1F]">Quantity:</p>
-
                   <div className="mt-5 flex items-center gap-8 text-xl">
                     <button type="button" onClick={handleDecreaseQty} disabled={isAdding}>-</button>
                     <span>{qty}</span>
@@ -455,30 +414,17 @@ export default function ProductCard({ product }) {
                 <table className="w-full border border-[#333] text-center text-[#111]">
                   <thead>
                     <tr>
-                      <th className="border border-[#333] px-4 py-4">
-                        GENERIC SIZE
-                      </th>
-                      <th className="border border-[#333] px-4 py-4">
-                        TO FIT WAIST
-                      </th>
-                      <th className="border border-[#333] px-4 py-4">
-                        TO FIT HIP
-                      </th>
+                      <th className="border border-[#333] px-4 py-4">GENERIC SIZE</th>
+                      <th className="border border-[#333] px-4 py-4">TO FIT WAIST</th>
+                      <th className="border border-[#333] px-4 py-4">TO FIT HIP</th>
                     </tr>
                   </thead>
-
                   <tbody>
                     {sizeChart.map(([size, waist, hip]) => (
                       <tr key={size}>
-                        <td className="border border-[#333] px-4 py-4">
-                          {size}
-                        </td>
-                        <td className="border border-[#333] px-4 py-4">
-                          {waist}
-                        </td>
-                        <td className="border border-[#333] px-4 py-4">
-                          {hip}
-                        </td>
+                        <td className="border border-[#333] px-4 py-4">{size}</td>
+                        <td className="border border-[#333] px-4 py-4">{waist}</td>
+                        <td className="border border-[#333] px-4 py-4">{hip}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -494,7 +440,6 @@ export default function ProductCard({ product }) {
           from { transform: translateX(100%); opacity: 0; }
           to { transform: translateX(0); opacity: 1; }
         }
-
         .animate-slideInRight {
           animation: slideInRight 0.35s ease-out;
         }
